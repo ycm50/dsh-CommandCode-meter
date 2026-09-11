@@ -31,7 +31,7 @@ This plugin is a customized fork of [dsh-cost-meter](https://github.com/Han-1413
 |---|---|
 | Quota endpoint | Swapped from `opencode.ai/zen/go/v1/usage` to the **official Command Code endpoint** `GET https://api.commandcode.ai/alpha/billing/credits` (Bearer auth) |
 | Three windows | Rolling **5h / weekly / monthly pool** all show “used / total” numbers + individual progress bars (upstream only showed the main window's percent) |
-| Monthly pool math | GOAT monthly pool is **70 USD** = monthly credits pool; `used = 70 − monthlyCredits`, `cap = 70` (constant `GOAT_MONTHLY_POOL` in [lib/index.js](lib/index.js); update it when switching plans: Go=$10 / Pro=$80 / Max 10x=$150 / Max 20x=$300) |
+| Monthly pool math | GOAT monthly pool is **$70 of usage**; `used = pool − monthlyCredits`, `cap = pool`. The pool is **configurable** (Settings → “Monthly credit pool”, default $70), because the official `monthlyCredits` value is the remaining allowance of the **model tier you are currently billing against** — per-model allowances differ (see the table below) |
 | Sidebar | GOAT box renders the same three-window used/total + progress-bar style as the Settings page; the **budget box lost its budget progress bar** (budget, used %, today's cost & share, used/limit remain) |
 | Credentials | Key resolution is now **DSH credential store `COMMANDCODE_API_KEY`** → env `COMMANDCODE_API_KEY` → legacy config `goQuota.apiKey` (the opencode login-state auto-detect was removed) |
 | Copy | All “OpenCode Go” strings → “Command Code GOAT”; new `goQuotaUsedOf` (used/total) i18n key (zh/en) |
@@ -67,7 +67,59 @@ Enter the key in **Settings → Cost → Quota (GOAT card) → API key input** (
 2. Environment variable `COMMANDCODE_API_KEY`
 3. Legacy config `goQuota.apiKey` (migration only)
 
-> ⚠️ `GOAT_MONTHLY_POOL = 70` is a hardcoded constant in [lib/index.js](lib/index.js) — verify it against the Command Code plan you actually subscribe to. The endpoint is only contacted after you explicitly enable the GOAT quota.
+> ⚠️ The monthly pool is no longer a hardcoded constant: the $70 default comes from `COMMAND_CODE_PLANS.goat.monthlyCredits` in [lib/coding-plans.js](lib/coding-plans.js) and can be overridden in **Settings → Cost → Quota (GOAT card) → Monthly credit pool**. The endpoint is only contacted after you explicitly enable the GOAT quota.
+
+## Verified GOAT pricing (from the official docs)
+
+| Item | Value |
+|---|---|
+| Plan price | **$10 / month** |
+| Monthly credits | **$70 of usage** (a 7× multiplier) |
+| Rolling 5-hour cap | **$14** (opens on the first request of the window, not a fixed clock) |
+| Weekly cap | **$35** |
+
+> The 5-hour and weekly caps come straight from the API's `windowLimits.fiveHour / weekly` `used`/`cap` fields and are taken as-is; the “Monthly credit pool” setting does not affect them.
+
+**Per-model monthly allowances differ** (official model table): $70 (GLM-5.2 / GPT-5.6 Sol / Tencent Hy3), $60 (DeepSeek V4 Flash family / Kimi K2.7 Code), $47 (MiniMax M3), $40 (GLM-5.3 Flash / Gemini 3.8 Flash), $33 (Qwen 3.7 family), $30 (MiMo V2.5), $20 (other new models). The API's `monthlyCredits` is the remaining allowance of the **model you are currently billing against**, so `used = pool − remaining` only holds when the pool is that same tier's allowance. That is why the pool is a setting: blank = GOAT default $70; switch your main model to DeepSeek V4 Flash and set `60`. If the pool is set too small (remaining > pool) the panel warns instead of reporting inflated usage.
+
+**Other plans** (set the corresponding value in “Monthly credit pool” when you switch):
+
+| Plan | Price/mo | Monthly credits | 5-hour cap | Weekly cap |
+|---|---|---|---|---|
+| Go | $1 | $10 | $3 | $6 |
+| **GOAT** | **$10** | **$70** | **$14** | **$35** |
+| Pro | $20 | $80 | $16 | $40 |
+| Max 10× | $100 | $150 | $45 | $90 |
+| Max 20× | $200 | $300 | $90 | $180 |
+| Team Pro | $40 | $40 | $12 | $24 |
+
+These values live in `COMMAND_CODE_PLANS` in [lib/coding-plans.js](lib/coding-plans.js), sourced from three official pages (fetched 2026-09):
+
+- <https://commandcode.ai/docs/plans/goat> (GOAT: $10/mo → $70, the 7× multiplier)
+- <https://commandcode.ai/docs/resources/pricing-limits> (full plan comparison + per-model rates)
+- <https://commandcode.ai/docs/resources/usage-limits> (per-plan 5-hour / weekly caps)
+
+## Model pricing (the `commandcode` route)
+
+If your model route points at Command Code's Provider API (`provider: commandcode`, baseURL
+`https://api.commandcode.ai/provider/v1`), the price table has to know that provider — otherwise
+calls record **tokens only and a cost of 0** (so "Today's cost" reads ¥0). This fork ships a
+built-in **`commandcode` provider table (49 models)** sourced from the official model table, with
+`sourceUrl` / `checkedAt` on every entry.
+
+- The DeepSeek family uses the official **peak / off-peak** tiers: off-peak $0.15 / $0.60 / $0.003,
+  peak $0.30 / $1.20 (peak windows 01–04 and 06–10 UTC, Mon–Fri — the same windows DeepSeek itself uses).
+- Other models use the official flat rates; official `-50% / -98% / -99%` promo prices are recorded at
+  the discounted value with the list price noted.
+- Model ids follow the Provider API (e.g. `deepseek/deepseek-v4.1-flash`, `zai-org/GLM-5.2`); case and
+  separator differences are absorbed by canonical matching.
+
+To add or change entries yourself, use **Settings → Cost → Extended price table**. **Sync official
+prices** only overwrites the DeepSeek main table; provider tables must be checked by hand.
+
+> After a price-table update, startup automatically re-costs historical buckets that have tokens but a
+> zero amount (billed at off-peak). To re-price history precisely at its real peak/off-peak instants,
+> toggling the **pricing currency** once triggers a full replay recompute.
 
 ## Relation to upstream
 

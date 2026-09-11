@@ -1,6 +1,6 @@
 {
   "name": "dsh-CommandCode-meter",
-  "version": "1.6.12-goat.1",
+  "version": "1.6.12-goat.3",
   "description": "DeepSeek Harness 会话费用统计插件(Command Code GOAT 定制版):本会话成本、当日费用、历史记录与官方价格同步,支持多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配)、Command Code GOAT 订阅额度查询(5 小时/周/月度池三档 已用/全部 + 进度条)、Coding Plan 订阅额度查询与显示、自定义 Provider 余额查询、峰谷计价时段显示与切换前弹窗/系统通知提醒,界面中英双语。Fork of dsh-cost-meter with the Go-quota card repointed to Command Code GOAT: 5h / weekly / monthly-pool quotas shown as used/total with progress bars.",
   "type": "module",
   "main": "lib/index.js",

@@ -31,7 +31,7 @@
 |---|---|
 | 额度接口 | 由 `opencode.ai/zen/go/v1/usage` 换成 **Command Code 官方端点** `GET https://api.commandcode.ai/alpha/billing/credits`(Bearer 认证) |
 | 三档窗口 | 滚动 **5 小时 / 本周 / 月度池** 三档,全部显示「已用 / 全部」数值 + 各自进度条(原版仅主档位显示百分比) |
-| 月度池口径 | GOAT 套餐月额度池 **70 美元** = 月度余额池;`used = 70 − monthlyCredits`,`cap = 70`(常量 `GOAT_MONTHLY_POOL` 见 [lib/index.js](lib/index.js),换套餐需改:Go=$10 / Pro=$80 / Max 10x=$150 / Max 20x=$300) |
+| 月度池口径 | GOAT 月额度池 **$70 等效用量**;`used = 池 − monthlyCredits`,`cap = 池`。**池可配置**(设置页「月度额度池」,缺省 $70),因为官方 `monthlyCredits` 是**当前计费模型那一档**的剩余额——各模型月度额度见下表 |
 | 侧边栏 | GOAT 图框与设置页同款三窗口「已用/全部 + 进度条」样式;**预算图框去掉预算进度条**(保留预算、已用%、今日费用与占预算%、已用/额度) |
 | 凭据 | Key 解析改为 **DSH 凭据库 `COMMANDCODE_API_KEY`** → 环境变量 `COMMANDCODE_API_KEY` → 旧配置 `goQuota.apiKey`(不再读取 opencode 登录态) |
 | 文案 | 全部 "OpenCode Go" → "Command Code GOAT",新增 `goQuotaUsedOf`(已用/全部)i18n 文案(中/英) |
@@ -61,6 +61,50 @@ dsh web
 
 > 注意:安装包内 `scripts.build` / `scripts.test` 引用的 `scripts/build.mjs` 与 `test/verify.mjs` 未随包发布(与上游一致,`files` 只含 `lib`、`cordis.patch.yml`、`docs/provider-pricing.json`),本地 git 克隆内不含这两个文件,`npm run build` 需要从上游仓库补齐;插件运行时不需要它们。
 
+| 月额度池 | **$70 等效用量**(月度 Credits),已用 = 池 − 剩余 |
+| 5 小时滚动窗上限 | **$14**(从本窗首次请求起算,非固定时钟) |
+| 周滚动窗上限 | **$35** |
+
+> 5 小时 / 周上限由官方接口 `windowLimits.fiveHour / weekly` 的 `used`/`cap` 直接返回,插件原样采信,不受「月度额度池」配置影响。
+
+**各模型月度额度不同**(官方模型表):$70(GLM-5.2 / GPT-5.6 Sol / Tencent Hy3)、$60(DeepSeek V4 Flash 系列 / Kimi K2.7 Code)、$47(MiniMax M3)、$40(GLM-5.3 Flash / Gemini 3.8 Flash)、$33(Qwen 3.7 系列)、$30(MiMo V2.5)、$20(其余新模型)。接口返回的 `monthlyCredits` 是**当前计费那一个模型档位**的剩余额,所以「已用 = 池 − 剩余」只有在**池取成同一档的 allowance** 时才成立。插件因此把池做成配置项:留空 = GOAT 默认 $70;主力模型换成 DeepSeek V4 Flash 档就填 `60`。池填小了(剩余 > 池)面板会给出警告,不会算出虚高的已用。
+
+**其他套餐**(换套餐时填对应值到「月度额度池」):
+
+| 套餐 | 月费 | 月度 Credits | 5 小时上限 | 周上限 |
+|---|---|---|---|---|
+| Go | $1 | $10 | $3 | $6 |
+| **GOAT** | **$10** | **$70** | **$14** | **$35** |
+| Pro | $20 | $80 | $16 | $40 |
+| Max 10× | $100 | $150 | $45 | $90 |
+| Max 20× | $200 | $300 | $90 | $180 |
+| Team Pro | $40 | $40 | $12 | $24 |
+
+以上数值在 [lib/coding-plans.js](lib/coding-plans.js) 的 `COMMAND_CODE_PLANS` 中集中维护,来源为官方三页文档(2026-09 抓取复核):
+
+- <https://commandcode.ai/docs/plans/goat>(GOAT:$10/月 → $70,7× 倍数)
+- <https://commandcode.ai/docs/resources/pricing-limits>(全套餐对照表 + 各模型费率)
+- <https://commandcode.ai/docs/resources/usage-limits>(逐套餐 5 小时 / 周上限)
+
+## 模型计价(commandcode 路由)
+
+如果你的模型路由指向 Command Code 的 Provider API(`provider: commandcode`,baseURL
+`https://api.commandcode.ai/provider/v1`),价格表需要认识这个 provider,否则调用会
+**只记 token、金额恒 0**(「今日费用」显示 ¥0)。本 fork 已内置 **`commandcode` provider
+价格表(49 个模型)**,数据取自官方文档模型表,每条都带 `sourceUrl` / `checkedAt`。
+
+- DeepSeek 系列按官方**峰谷两档**:谷 $0.15 / $0.60 / $0.003,峰 $0.30 / $1.20
+  (峰时段 01–04 与 06–10 UTC 周一至周五,与 DeepSeek 官方同一窗口)。
+- 其余模型按官方单档报价;官方 `-50% / -98% / -99%` 促销价按折后价录入。
+- 模型 id 用 Provider API 写法(如 `deepseek/deepseek-v4.1-flash`、`zai-org/GLM-5.2`);
+  大小写与连接符差异由归一化匹配兜住。
+
+若要自行增改,在 **设置 → 费用 → 拓展价格表** 中挂载/编辑;官方调价后用
+**同步官方价格** 只覆盖 DeepSeek 主表,provider 表需手动核对。
+
+> 价格表更新后,启动时会自动为「有 token 但金额为 0」的历史桶补账(按谷价)。
+> 若要把历史按真实峰谷时刻精确重算,切换一次「价格币种」会触发全量重放重定价。
+
 ## 配置 COMMANDCODE_API_KEY
 
 在 **设置 → 费用 → 额度(Go 卡)→ 输入 API Key**(只写不回显,保存进 DSH 凭据库),或提前在 DSH 凭据库/环境变量中配置 `COMMANDCODE_API_KEY`。Key 解析优先级:
@@ -69,7 +113,7 @@ dsh web
 2. 环境变量 `COMMANDCODE_API_KEY`
 3. 旧配置 `goQuota.apiKey`(仅迁移用)
 
-> ⚠️ `GOAT_MONTHLY_POOL = 70` 是 [lib/index.js](lib/index.js) 中的硬编码常量,按你实际订阅的 Command Code 套餐核对;接口只在显式启用 GOAT 额度时才会出站请求。
+> ⚠️ 月度额度池不再是硬编码常量:默认 $70 来自 [lib/coding-plans.js](lib/coding-plans.js) 的 `COMMAND_CODE_PLANS.goat.monthlyCredits`,可在 **设置 → 费用 → 额度(Go 卡)→ 月度额度池** 覆盖。接口只在显式启用 GOAT 额度时才会出站请求。
 
 ## 与上游的关系
 
