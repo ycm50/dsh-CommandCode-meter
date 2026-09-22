@@ -59,7 +59,9 @@ dsh plugin --profile web add dsh-CommandCode-meter
 dsh web
 ```
 
-> 注意:安装包内 `scripts.build` / `scripts.test` 引用的 `scripts/build.mjs` 与 `test/verify.mjs` 未随包发布(与上游一致,`files` 只含 `lib`、`cordis.patch.yml`、`docs/provider-pricing.json`),本地 git 克隆内不含这两个文件,`npm run build` 需要从上游仓库补齐;插件运行时不需要它们。
+> 注意:本包 `lib/` 就是交付产物,没有编译步骤(`package.json` 已不含 `build`;`files` 只含 `lib`、`cordis.patch.yml`、`docs/provider-pricing.json`)。开发期自检用 `npm test`(=`scripts/verify-typert.mjs`,不随包发布):它会把每一代能定位到的 `@deepseek-ai/dsh-typert-loader` 都跑一遍真实 `validateTypertManifest()`,并检查 `lib/client.js` 的 codec 双键与 `exports` 打包契约;插件运行时不需要这些文件。
+
+> 兼容性:`lib/typert.host.js` / `lib/client.js` 里的 strict codec 必须**同时**带 `schema: <zod v4>` 与 `create: () => <zod>`——0.1.5-rc.x 那代宿主只认 `schema`,0.1.7+ 只认 `create`,少写任一个键,该插件在这代宿主上会整份 typert 贡献注册失败(Remote 方法全丢、设置页与费用面板失效)。改 `lib/` 后先跑 `npm test`,再按上面的方式刷新 profile 里的已安装副本。
 
 | 月额度池 | **$70 等效用量**(月度 Credits),已用 = 池 − 剩余 |
 | 5 小时滚动窗上限 | **$14**(从本窗首次请求起算,非固定时钟) |

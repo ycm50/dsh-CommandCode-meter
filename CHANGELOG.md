@@ -2,6 +2,40 @@
 
 本项目为 [dsh-cost-meter](https://github.com/Han-1413141/dsh-cost-meter) v1.6.12 的 **Command Code GOAT 定制 fork**。上游逐条开发记录见上游仓库 `CHANGELOG.md`;本文件只记录本 fork 相对上游 v1.6.12 的改动。
 
+## 1.6.12-goat.4 (2026-09-22)
+
+### 修复:typert codec 形状在「0.1.5-rc.x / 0.1.7+」两代宿主间不兼容,插件 typert 贡献整份注册失败
+
+**现象**:在 `A:\Downloads\deepseek-harness` 源码检出(0.1.7-alpha.1)上启动 Web 后,页面「Failed to load plugins」显示 `dsh-CommandCode-meter: failed`,启动日志(`%USERPROFILE%\.dsh\logs\startup-*.log`)里:
+
+```
+dsh: warning: 1 entry did not activate
+typert-loader (@deepseek-ai/dsh-typert-loader): AggregateError: typert-loader: 1 typert contributor(s) failed to register:
+  - typert-loader: dsh-CommandCode-meter invocation "dsh-CommandCode-meter#costMeter/getState" result codec has no create() factory
+```
+
+插件本体能加载(账本读写正常),但 `lib/typert.host.js` 的手写清单在 `validateTypertManifest()` 入口被**整份拒绝**,`ctx.costMeter` 的 13 个 Remote 方法一个都没挂上;`lib/client.js` 里同名的 22 个 codec 也会在 `remote.$mount()` 时被拒——设置页与费用面板随之失效。
+
+**根因**:strict codec 的键名在两代 DSH 之间换过一次,而两代都是硬校验;手写清单只写某一个键,必然被另一代整份拒收(全局安装与源码检出共用同一个 `~/.dsh/profiles/web`,所以两边会轮流报错):
+
+| 世代 | Host 面 loader | Client 面 registry |
+| --- | --- | --- |
+| 0.1.5-rc.x(全局 `pnpm i -g` 那份,loader 0.1.5-rc.2) | `requireStrictCodec()` 要求 `codec.schema` 是 zod v4 实例(`_zod` + `parse`) | `validateCodec()` 要求 `codec.schema.parse` 是函数 |
+| 0.1.7+(源码检出,loader 0.1.7-alpha.1) | `requireStrictCodec()`([packages/typert/loader/src/index.ts](../deepseek-harness/packages/typert/loader/src/index.ts) 第 281 行)要求 `codec.create` 是函数 | `validateCodec()`([packages/typert/registry/src/client.ts](../deepseek-harness/packages/typert/registry/src/client.ts))要求 `codec.create` 是函数 |
+
+两代都只在**入口**校验一次(Host 面 `validateTypertManifest()` 逐个 invocation;Client 面 `remote.$mount()`),任一 codec 不合格 → 该包贡献整体不注册:Host 面 13 个 Remote 方法全丢、Client 面设置页与费用面板静默失效。generator 产物跟着当前世代只写其中一个键(对照 [packages/api/settings-controller/lib/typert.remote-client.js](../deepseek-harness/packages/api/settings-controller/lib/typert.remote-client.js) 只有 `create`),手写清单不能照抄单键形状。
+
+**改动**:
+
+- `lib/typert.host.js`:12 个 codec(`_state$` / `_patch$` / `_fetch$` / `_provider$` / `_credTarget$` / `_credValue$` / `_day$` / `_date$` / `_topSessions$` / `_limit$` / `_sort$` / `_dir$`)统一改为**双键** `{ mode: 'strict', typeSymbol, schema: X, create: () => X }`(`schema` 给 0.1.5-rc.x,`create` 给 0.1.7+);文件头注释写明这条硬约束。
+- `lib/client.js`:22 处 codec 描述符同样补成双键。此前误判为「客户端只查 mode」——实际客户端 registry 的 `validateCodec()` 也硬校验(老世代查 `schema.parse`,新世代查 `create`)。
+- `scripts/verify-typert.mjs`(新):`npm test` 现在把每一代能定位到的 `@deepseek-ai/dsh-typert-loader` 都跑一遍真实 `validateTypertManifest()`(全局安装那代 + 兄弟目录里的检出,逐个报告版本号),再按文本校验 Client 面 22 个 codec 的双键与 `exports["./typert"]` / `exports["./client"]` 打包契约;一个 loader 都定位不到时退化为主脚本内置的并集校验。`--plugin <目录>` 可直接校验已安装副本,`--anchor <检出根>` 指定额外锚点。
+- `package.json`:`test` 改为 `node scripts/verify-typert.mjs`(不再依赖未随包安装的 `tsx`);删掉指向不存在文件的 `build` 脚本(本包 `lib/` 即交付产物,无编译步骤),新增 `prepublishOnly` 在发布前跑同一校验。
+
+**部署**:DSH 加载的是 profile 里的**已安装副本**,改本仓库不会自动生效,需刷新副本后重启,例如
+`pnpm dsh plugin --profile web add A:\Downloads\dsh-CommandCode-meter`(该命令把参数原样转发给 profile 目录内的 pnpm;注意它会把 profile 依赖从 `github:ycm50/dsh-commandCode-meter` 改写成本地路径,若要保持 git 依赖,请先提交并推送本仓库,再 `pnpm dsh plugin --profile web add dsh-CommandCode-meter`)。校验副本是否已修好:
+`node scripts/verify-typert.mjs --plugin "%USERPROFILE%\.dsh\profiles\web\node_modules\dsh-CommandCode-meter"`。
+
 ## 1.6.12-goat.3 (2026-09-11)
 
 ### 修复:commandcode 路由的调用费用恒为 0

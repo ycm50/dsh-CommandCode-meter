@@ -57,7 +57,9 @@ After installing, **restart** `dsh web` (plugin rows, the Typert manifest and th
 dsh web
 ```
 
-> Note: the shipped package references `scripts/build.mjs` and `test/verify.mjs` in `scripts.build` / `scripts.test`, but those files are not shipped (`files` only includes `lib`, `cordis.patch.yml`, `docs/provider-pricing.json` — same as upstream). `npm run build` needs those files copied from the upstream repo; the plugin does not need them at runtime.
+> Note: `lib/` **is** the shipped artifact — there is no compile step (`package.json` no longer defines `build`; `files` only includes `lib`, `cordis.patch.yml`, `docs/provider-pricing.json`). For development, `npm test` (= `scripts/verify-typert.mjs`, not shipped) runs the real `validateTypertManifest()` from every `@deepseek-ai/dsh-typert-loader` generation it can locate, and checks the codec keys in `lib/client.js` plus the `exports` packaging contract. The plugin does not need these files at runtime.
+
+> Compatibility: every strict codec in `lib/typert.host.js` / `lib/client.js` must carry **both** `schema: <zod v4>` and `create: () => <zod>` — the 0.1.5-rc.x host generation only reads `schema`, 0.1.7+ only reads `create`. Dropping either key makes that generation reject the whole typert contribution (all Remote methods gone; settings page and cost panel silently break). After editing `lib/`, run `npm test` and refresh the installed copy in the profile as described above.
 
 ## Configuring COMMANDCODE_API_KEY
 
