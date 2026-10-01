@@ -237,78 +237,57 @@ export const DEFAULT_PROVIDER_PRICE_TABLE = {
   // OpenCode Go 订阅($10/月)包含的模型中非 DeepSeek 的 19 个(不含免费档):订阅制下请求
   // 不按 token 扣费,此处为官方公布的参考单价(用于成本估算/对比),来源 opencode.ai/docs/go。
   // DeepSeek V4 Flash/Pro 与官方主表重复,以官方为准(含峰谷两档),Go 目录不重复收录(v1.5.2 移除)。
-  // OpenCode Go 订阅目录价($/1M tokens)。来源: https://opencode.ai/docs/go (2026-10-02 抓取复核)。
-  //
-  // 口径说明:
-  //  - 模型 id 取 Go 目录的写法(lower-case + 连字符),大小写/连接符差异由 canonModelId 归一匹配兜住。
-  //  - DeepSeek 系列官方给「峰/谷」双档,峰时段 01–04 与 06–10 UTC 周一至周五(与 DeepSeek 官方同一窗口),
-  //    故用 billingMode:'deepseek-peak' 复用 config.peakWindows / peakEnabled 与周末全谷价规则。
-  //    顶层字段按本插件惯例取「谷价」。官方未公布缓存读峰值,按官方每对价格恰好 2× 的规律推为 2×;
-  //    **必须显式写出 cacheHit**,否则 completeTier 会用 cacheMiss 兜底把缓存读按未命中价计费(虚高数十倍)。
-  //  - 其余模型为单档报价(billingMode:'flat')。
-  //  - 上下文分档的模型(Grok 4.7 / GPT 6 Luna / Qwen3.7 Plus)官方给两段价,此处取「≤ 阈值」档;
-  //    超出阈值的调用按官方高档价,暂以 notes 标注,不启用分段计价(与上游口径一致)。
   'opencode-go': {
     models: {
-      // ── DeepSeek 系列(峰谷双档) ──────────────────────────────────
-      'deepseek-v4.1-flash': {
-        cacheHit: 0.003, cacheMiss: 0.15, output: 0.6,
-        offPeak: { cacheHit: 0.003, cacheMiss: 0.15, output: 0.6 },
-        peak: { cacheHit: 0.006, cacheMiss: 0.3, output: 1.2 },
-        billingMode: 'deepseek-peak', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02',
-      },
-      'deepseek-v4-pro': {
-        cacheHit: 0.022, cacheMiss: 0.66, output: 1.98,
-        offPeak: { cacheHit: 0.022, cacheMiss: 0.66, output: 1.98 },
-        peak: { cacheHit: 0.044, cacheMiss: 1.32, output: 3.96 },
-        billingMode: 'deepseek-peak', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02',
-      },
-      'deepseek-v4-flash': {
-        cacheHit: 0.003, cacheMiss: 0.15, output: 0.6,
-        offPeak: { cacheHit: 0.003, cacheMiss: 0.15, output: 0.6 },
-        peak: { cacheHit: 0.006, cacheMiss: 0.3, output: 1.2 },
-        billingMode: 'deepseek-peak', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02',
-      },
-      'deepseek-v4-flash-vision-exp': {
-        cacheHit: 0.003, cacheMiss: 0.15, output: 0.6,
-        offPeak: { cacheHit: 0.003, cacheMiss: 0.15, output: 0.6 },
-        peak: { cacheHit: 0.006, cacheMiss: 0.3, output: 1.2 },
-        billingMode: 'deepseek-peak', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02',
-      },
-      // ── GLM ───────────────────────────────────────────────────────
-      'glm-5.3-flash': { input: 0.15, cachedInput: 0.03, output: 0.5, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'glm-5.3': { input: 1.4, cachedInput: 0.26, output: 4.4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'glm-5.2': { input: 1.4, cachedInput: 0.26, output: 4.4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'glm-5.1': { input: 1.4, cachedInput: 0.26, output: 4.4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      // ── Kimi ──────────────────────────────────────────────────────
-      'kimi-k3': { input: 3.0, cachedInput: 0.3, output: 15.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'kimi-k2.7-code': { input: 0.95, cachedInput: 0.19, output: 4.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'kimi-k2.6': { input: 0.95, cachedInput: 0.16, output: 4.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      // ── MiniMax ───────────────────────────────────────────────────
-      'minimax-m3': { input: 0.3, cachedInput: 0.06, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'minimax-m2.7': { input: 0.3, cachedInput: 0.06, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      // ── MiMo ──────────────────────────────────────────────────────
-      'mimo-v2.6-flash': { input: 0.14, cachedInput: 0.0028, output: 0.28, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'mimo-v2.6-pro': { input: 0.435, cachedInput: 0.003625, output: 0.87, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'mimo-v2.5': { input: 0.14, cachedInput: 0.0028, output: 0.28, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'mimo-v2.5-pro': { input: 0.435, cachedInput: 0.003625, output: 0.87, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      // ── Qwen ──────────────────────────────────────────────────────
-      'qwen3.8-max': { input: 2.0, cachedInput: 0.25, output: 6.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'qwen3.8-flash': { input: 0.15, cachedInput: 0.016, output: 0.47, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'qwen3.7-plus': { input: 0.4, cachedInput: 0.04, output: 1.6, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'qwen3.6-plus': { input: 0.5, cachedInput: 0.05, output: 3.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      // ── Meta / 腾讯 / 美团 ────────────────────────────────────────
-      'longcat-2.0': { input: 0.3, cachedInput: 0.006, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'hy3': { input: 0.14, cachedInput: 0.035, output: 0.58, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'muse-spark-1.2-contributor': { input: 0.1, cachedInput: 0.002, output: 0.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      // ── xAI / OpenAI ──────────────────────────────────────────────
-      'grok-4.7': { input: 2.0, cachedInput: 0.5, output: 6.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02', notes: '≤ 200K tokens 档;> 200K 官方为 $4.00/$12.00/$1.00' },
-      'grok-4.6': { input: 2.0, cachedInput: 0.5, output: 6.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02', notes: '≤ 200K tokens 档;> 200K 官方为 $4.00/$12.00/$1.00' },
-      'grok-4.5': { input: 2.0, cachedInput: 0.3, output: 6.0, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02' },
-      'gpt-6-luna': { input: 0.1, cachedInput: 0.01, output: 0.5, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02', notes: '≤ 272K tokens 档;> 272K 官方为 $0.20/$0.75/$0.02' },
-      'gpt-5.6-luna': { input: 0.2, cachedInput: 0.02, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-10-02', notes: '≤ 272K tokens 档;> 272K 官方为 $0.40/$1.80/$0.04' },
+      'grok-4.5': { input: 2, cachedInput: 0.3, output: 6, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/zen', checkedAt: '2026-08-25' },
+      // GLM-5.3 于 2026-08-19 后登上 Go 目录价目表($1.40/$4.40/$0.26,与 5.2/5.1 同价);
+      // z-ai.glm-5.3 维持 unpriced——Go 目录价不是智谱官方价(issue #58)。
+      'glm-5.3': { input: 1.4, cachedInput: 0.26, output: 4.4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-25' },
+      'glm-5.2': { input: 1.4, cachedInput: 0.26, output: 4.4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'glm-5.1': { input: 1.4, cachedInput: 0.26, output: 4.4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'gpt-5.6-luna': { input: 0.2, cachedInput: 0.02, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'kimi-k3': { input: 3, cachedInput: 0.3, output: 15, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'kimi-k2.7-code': { input: 0.95, cachedInput: 0.19, output: 4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'kimi-k2.6': { input: 0.95, cachedInput: 0.16, output: 4, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'mimo-v2.5': { input: 0.14, cachedInput: 0.0028, output: 0.28, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'mimo-v2.5-pro': { input: 0.435, cachedInput: 0.003625, output: 0.87, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'minimax-m3': { input: 0.3, cachedInput: 0.06, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'minimax-m2.7': { input: 0.3, cachedInput: 0.06, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'qwen3.8-max': { input: 2, cachedInput: 0.25, output: 6, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'qwen3.7-max': { input: 2.5, cachedInput: 0.5, output: 7.5, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'qwen3.7-plus': { input: 0.4, cachedInput: 0.04, output: 1.6, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'qwen3.6-plus': { input: 0.5, cachedInput: 0.05, output: 3, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      'hy3': { input: 0.14, cachedInput: 0.035, output: 0.58, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-17' },
+      // 2026-08 下旬新上 Go 目录的两个模型(issue #58);Muse Spark Contributor 为
+      // 「低价换数据授权」档(用于训练未来 Meta 模型),限地区提供。
+      'longcat-2.0': { input: 0.3, cachedInput: 0.006, output: 1.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-25' },
+      'muse-spark-1.2-contributor': { input: 0.1, cachedInput: 0.002, output: 0.2, billingMode: 'flat', sourceUrl: 'https://opencode.ai/docs/go', checkedAt: '2026-08-25', notes: '低价换取提示词/补全用于训练 Meta 模型;限地区' },
     },
   },
+  // Command Code Provider API 目录价($/1M tokens)。
+  //
+  // 背景(实战修复):本 fork 的用户把模型路由到 provider `commandcode`
+  // (baseURL https://api.commandcode.ai/provider/v1),而此前价格表既没有
+  // `commandcode` 这个 provider、主表也没有 `deepseek-v4.1-flash`,于是
+  // providerPriceEntryFor 走到「未定价」分支返回 priced:false —— token 照记、
+  // cost 恒 0,「今日费用」显示 ¥0(实测 2026-09-11:184 次调用、
+  // 15.4M cacheRead 全为 0 元)。此处补齐官方目录价。
+  //
+  // 来源(2026-09-11 抓取):https://commandcode.ai/docs/plans/goat
+  //   「Every model on the GOAT plan is listed below」表(Input / Output /
+  //   Cache Read / Cache Write,媒体每 1M tokens),以及同页模型总表。
+  // 模型 id 采用 Command Code Provider API 的写法(与本机 settings.yaml 中
+  // llm-pi-ai 的 commandcode provider 模型 id 一致);大小写差异由
+  // canonModelId 归一匹配兜住。
+  //
+  // 峰谷档说明:官方对 DeepSeek 系列给的是「空闲价 + peak 价」,峰时段为
+  // 01–04 与 06–10 UTC(周一至周五)——与 DeepSeek 官方完全同一窗口,故直接
+  // 复用 billingMode:'deepseek-peak'(会套用 config.peakWindows / peakEnabled
+  // 与周末全谷价规则)。官方只公布了 peak 的输入/输出两项;缓存读峰值未公布,
+  // 按官方自己给出的每一对价格都是恰好 2×(0.15→0.30、0.60→1.20、0.66→1.32、
+  // 1.98→3.96)推算为 2× —— 必须显式写出,否则 completeTier 会用 cacheMiss
+  // 兜底把缓存读按未命中价计费(15M cacheRead 会虚高数十倍)。
+  // 顶层字段按本插件惯例取「空闲档」,peak/offPeak 为两档明细。
   commandcode: {
     models: {
       'deepseek/deepseek-v4.1-flash': {

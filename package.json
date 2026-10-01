@@ -78,9 +78,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ycm50/dsh-opencode-go-meter.git"
+    "url": "git+https://github.com/ycm50/dsh-subscribe-meter.git"
   },
-  "homepage": "https://github.com/ycm50/dsh-opencode-go-meter#readme",
+  "homepage": "https://github.com/ycm50/dsh-subscribe-meter#readme",
   "keywords": [
     "deepseek",
     "deepseek-harness",
@@ -110,6 +110,6 @@
     "esbuild": "^0.28.1"
   },
   "bugs": {
-    "url": "https://github.com/ycm50/dsh-opencode-go-meter/issues"
+    "url": "https://github.com/ycm50/dsh-subscribe-meter/issues"
   }
 }
